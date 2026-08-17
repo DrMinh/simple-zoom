@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelView — Image Viewer</title>
+
+<style>
+    :root {
+        --bg: #111318;
+        --panel: #191c23;
+        --panel-2: #20242d;
+        --border: #303641;
+        --text: #f1f3f5;
+        --muted: #9299a6;
+        --accent: #5b9cff;
+        --accent-hover: #78adff;
+        --danger: #ff6262;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        font-family:
+            Inter,
+            ui-sans-serif,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ---------------------------------------------------------
+       Header
+    --------------------------------------------------------- */
+
+    .toolbar {
+        height: 58px;
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        user-select: none;
+        z-index: 10;
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-right: 12px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: .2px;
+    }
+
+    .brand-mark {
+        width: 25px;
+        height: 25px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        background: var(--accent);
+        color: white;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding-right: 8px;
+        margin-right: 4px;
+        border-right: 1px solid var(--border);
+    }
+
+    button {
+        appearance: none;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text);
+        height: 34px;
+        min-width: 34px;
+        padding: 0 10px;
+        border-radius: 7px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        transition:
+            background .12s ease,
+            border-color .12s ease;
+    }
+
+    button:hover {
+        background: var(--panel-2);
+        border-color: var(--border);
+    }
+
+    button:active {
+        transform: translateY(1px);
+    }
+
+    button.primary {
+        background: var(--accent);
+        color: white;
+    }
+
+    button.primary:hover {
+        background: var(--accent-hover);
+        border-color: transparent;
+    }
+
+    .zoom-label {
+        min-width: 66px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .spacer {
+        flex: 1;
+    }
+
+    .file-info {
+        color: var(--muted);
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 330px;
+    }
+
+    /* ---------------------------------------------------------
+       Viewer
+    --------------------------------------------------------- */
+
+    .viewer {
+        position: relative;
+        flex: 1;
+        overflow: hidden;
+        background-color: #0d0f13;
+
+        /*
+         * Subtle checkerboard indicating transparency.
+         */
+        background-image:
+            linear-gradient(45deg, #15181d 25%, transparent 25%),
+            linear-gradient(-45deg, #15181d 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #15181d 75%),
+            linear-gradient(-45deg, transparent 75%, #15181d 75%);
+        background-size: 32px 32px;
+        background-position:
+            0 0,
+            0 16px,
+            16px -16px,
+            -16px 0;
+    }
+
+    .canvas {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        cursor: grab;
+    }
+
+    .canvas.dragging {
+        cursor: grabbing;
+    }
+
+    /*
+     * The image is positioned with transforms.
+     *
+     * image-rendering:
+     *   pixelated = preserve hard pixel edges when enlarged.
+     */
+    #image {
+        position: absolute;
+        left: 0;
+        top: 0;
+
+        max-width: none;
+        max-height: none;
+
+        user-select: none;
+        -webkit-user-drag: none;
+
+        transform-origin: 0 0;
+
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+
+        pointer-events: none;
+    }
+
+    /*
+     * Empty state
+     */
+
+    .empty-state {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        pointer-events: none;
+    }
+
+    .empty-card {
+        width: min(520px, calc(100vw - 40px));
+        padding: 42px 35px;
+        text-align: center;
+        border: 1px dashed #454c59;
+        border-radius: 14px;
+        background: rgba(20, 23, 29, .82);
+        backdrop-filter: blur(8px);
+    }
+
+    .empty-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 18px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        background: var(--panel-2);
+        color: var(--accent);
+        font-size: 25px;
+    }
+
+    .empty-card h1 {
+        margin: 0 0 9px;
+        font-size: 20px;
+    }
+
+    .empty-card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+        font-size: 13px;
+    }
+
+    .empty-card strong {
+        color: var(--text);
+    }
+
+    .drop-active::after {
+        content: "";
+        position: absolute;
+        inset: 14px;
+        border: 2px dashed var(--accent);
+        border-radius: 12px;
+        pointer-events: none;
+        box-shadow: 0 0 40px rgba(91, 156, 255, .12);
+    }
+
+    /* ---------------------------------------------------------
+       Bottom status bar
+    --------------------------------------------------------- */
+
+    .statusbar {
+        height: 30px;
+        min-height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 13px;
+        background: var(--panel);
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+        user-select: none;
+    }
+
+    .status-item {
+        display: flex;
+        gap: 5px;
+    }
+
+    .status-item strong {
+        color: var(--text);
+        font-weight: 500;
+    }
+
+    /* ---------------------------------------------------------
+       File input
+    --------------------------------------------------------- */
+
+    #fileInput {
+        display: none;
+    }
+
+    @media (max-width: 700px) {
+        .brand {
+            margin-right: 2px;
+        }
+
+        .file-info {
+            display: none;
+        }
+
+        .toolbar {
+            gap: 3px;
+            padding: 0 7px;
+        }
+
+        .toolbar-group {
+            padding-right: 4px;
+            margin-right: 2px;
+        }
+
+        button {
+            padding: 0 7px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<header class="toolbar">
+
+    <div class="brand">
+        <div class="brand-mark">P</div>
+        PixelView
+    </div>
+
+    <div class="toolbar-group">
+        <button
+            id="openButton"
+            class="primary"
+            title="Open image">
+            Open
+        </button>
+
+        <input
+            id="fileInput"
+            type="file"
+            accept="image/*">
+    </div>
+
+    <div class="toolbar-group">
+
+        <button
+            id="zoomOut"
+            title="Zoom out (-)">
+            −
+        </button>
+
+        <div
+            id="zoomLabel"
+            class="zoom-label">
+            100%
+        </div>
+
+        <button
+            id="zoomIn"
+            title="Zoom in (+)">
+            +
+        </button>
+
+    </div>
+
+    <div class="toolbar-group">
+
+        <button
+            id="fitButton"
+            title="Fit image to window">
+            Fit
+        </button>
+
+        <button
+            id="actualButton"
+            title="Display at actual pixel size">
+            100%
+        </button>
+
+        <button
+            id="resetButton"
+            title="Reset view">
+            Reset
+        </button>
+
+    </div>
+
+    <div class="spacer"></div>
+
+    <div
+        id="fileInfo"
+        class="file-info">
+        No image loaded
+    </div>
+
+</header>
+
+
+<main
+    id="viewer"
+    class="viewer">
+
+    <div
+        id="canvas"
+        class="canvas">
+
+        <img
+            id="image"
+            alt="Image preview"
+            draggable="false">
+
+    </div>
+
+
+    <div
+        id="emptyState"
+        class="empty-state">
+
+        <div class="empty-card">
+
+            <div class="empty-icon">⌁</div>
+
+            <h1>Drop an image here</h1>
+
+            <p>
+                Drag & drop an image, click <strong>Open</strong>,
+                or simply paste an image from your clipboard with
+                <strong>Ctrl + V</strong>.
+            </p>
+
+        </div>
+
+    </div>
+
+</main>
+
+
+<footer class="statusbar">
+
+    <div class="status-item">
+        Zoom:
+        <strong id="statusZoom">—</strong>
+    </div>
+
+    <div class="status-item">
+        Image:
+        <strong id="statusDimensions">—</strong>
+    </div>
+
+    <div class="status-item">
+        Position:
+        <strong id="statusPosition">—</strong>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="status-item">
+        Wheel: Zoom
+    </div>
+
+    <div class="status-item">
+        Drag: Pan
+    </div>
+
+    <div class="status-item">
+        Double-click: Fit / 100%
+    </div>
+
+</footer>
+
+
+<script>
+"use strict";
+
+/*
+ * PixelView
+ * ----------
+ * Standalone image viewer.
+ * No external dependencies.
+ */
+
+
+/* ============================================================
+   DOM
+============================================================ */
+
+const viewer = document.getElementById("viewer");
+const canvas = document.getElementById("canvas");
+const image = document.getElementById("image");
+const emptyState = document.getElementById("emptyState");
+
+const fileInput = document.getElementById("fileInput");
+const openButton = document.getElementById("openButton");
+
+const zoomInButton = document.getElementById("zoomIn");
+const zoomOutButton = document.getElementById("zoomOut");
+
+const fitButton = document.getElementById("fitButton");
+const actualButton = document.getElementById("actualButton");
+const resetButton = document.getElementById("resetButton");
+
+const zoomLabel = document.getElementById("zoomLabel");
+const fileInfo = document.getElementById("fileInfo");
+
+const statusZoom = document.getElementById("statusZoom");
+const statusDimensions = document.getElementById("statusDimensions");
+const statusPosition = document.getElementById("statusPosition");
+
+
+/* ============================================================
+   Viewer state
+============================================================ */
+
+let state = {
+    loaded: false,
+
+    width: 0,
+    height: 0,
+
+    /*
+     * Scale 1 = exactly one source image pixel per screen pixel.
+     */
+    scale: 1,
+
+    minScale: 0.02,
+    maxScale: 32,
+
+    x: 0,
+    y: 0,
+
+    objectUrl: null,
+
+    fileName: "",
+    fileType: "",
+
+    dragging: false,
+
+    dragStartX: 0,
+    dragStartY: 0,
+
+    imageStartX: 0,
+    imageStartY: 0
+};
+
+
+/* ============================================================
+   Utility
+============================================================ */
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes)) {
+        return "—";
+    }
+
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    if (bytes < 1024 * 1024 * 1024) {
+        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+
+function formatZoom(scale) {
+    const percent = scale * 100;
+
+    if (percent >= 1000) {
+        return `${Math.round(percent)}%`;
+    }
+
+    if (percent >= 100) {
+        return `${Math.round(percent)}%`;
+    }
+
+    if (percent >= 10) {
+        return `${percent.toFixed(1)}%`;
+    }
+
+    return `${percent.toFixed(2)}%`;
+}
+
+
+/* ============================================================
+   Rendering
+============================================================ */
+
+function render() {
+
+    if (!state.loaded) {
+        return;
+    }
+
+    /*
+     * We deliberately use the image's native pixel dimensions.
+     *
+     * At scale = 1:
+     *
+     *     source pixel = screen pixel
+     *
+     * At scale = 4:
+     *
+     *     source pixel = 4 × 4 screen pixels
+     *
+     * image-rendering: pixelated keeps enlarged pixels sharp.
+     */
+
+    image.style.width = `${state.width}px`;
+    image.style.height = `${state.height}px`;
+
+    image.style.transform =
+        `translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`;
+
+    const zoom = formatZoom(state.scale);
+
+    zoomLabel.textContent = zoom;
+    statusZoom.textContent = zoom;
+
+    statusDimensions.textContent =
+        `${state.width} × ${state.height}`;
+
+    statusPosition.textContent =
+        `${Math.round(state.x)}, ${Math.round(state.y)}`;
+}
+
+
+/* ============================================================
+   Image loading
+============================================================ */
+
+function loadImageFile(file) {
+
+    if (!file) {
+        return;
+    }
+
+    /*
+     * Only accept files the browser identifies as images.
+     *
+     * SVG is also accepted by browsers through image/*.
+     */
+    if (!file.type.startsWith("image/")) {
+        alert("Please select a valid image file.");
+        return;
+    }
+
+    if (state.objectUrl) {
+        URL.revokeObjectURL(state.objectUrl);
+        state.objectUrl = null;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+
+    state.objectUrl = objectUrl;
+    state.fileName = file.name || "Clipboard image";
+    state.fileType = file.type || "Unknown";
+
+    image.onload = () => {
+
+        state.width = image.naturalWidth;
+        state.height = image.naturalHeight;
+
+        if (!state.width || !state.height) {
+            alert("The browser could not determine the image dimensions.");
+            return;
+        }
+
+        state.loaded = true;
+
+        emptyState.style.display = "none";
+
+        fileInfo.textContent =
+            `${state.fileName} · ${state.fileType} · ${formatBytes(file.size)}`;
+
+        /*
+         * Start with a fit-to-screen view.
+         */
+        fitToScreen();
+
+        render();
+    };
+
+    image.onerror = () => {
+
+        URL.revokeObjectURL(objectUrl);
+
+        state.objectUrl = null;
+        state.loaded = false;
+
+        alert(
+            "This browser cannot decode this image format."
+        );
+    };
+
+    image.src = objectUrl;
+}
+
+
+/* ============================================================
+   Fit
+============================================================ */
+
+function calculateFitScale() {
+
+    if (!state.loaded) {
+        return 1;
+    }
+
+    const rect = viewer.getBoundingClientRect();
+
+    const availableWidth = Math.max(1, rect.width - 40);
+    const availableHeight = Math.max(1, rect.height - 40);
+
+    const scaleX = availableWidth / state.width;
+    const scaleY = availableHeight / state.height;
+
+    return clamp(
+        Math.min(scaleX, scaleY),
+        state.minScale,
+        state.maxScale
+    );
+}
+
+
+function fitToScreen() {
+
+    if (!state.loaded) {
+        return;
+    }
+
+    state.scale = calculateFitScale();
+
+    const rect = viewer.getBoundingClientRect();
+
+    const displayedWidth = state.width * state.scale;
+    const displayedHeight = state.height * state.scale;
+
+    state.x = (rect.width - displayedWidth) / 2;
+    state.y = (rect.height - displayedHeight) / 2;
+
+    render();
+}
+
+
+function actualSize() {
+
+    if (!state.loaded) {
+        return;
+    }
+
+    state.scale = 1;
+
+    const rect = viewer.getBoundingClientRect();
+
+    state.x =
+        (rect.width - state.width) / 2;
+
+    state.y =
+        (rect.height - state.height) / 2;
+
+    render();
+}
+
+
+function resetView() {
+    fitToScreen();
+}
+
+
+/* ============================================================
+   Zoom
+============================================================ */
+
+/*
+ * Zoom around a screen point.
+ *
+ * This is important:
+ *
+ * If the cursor is over pixel (X,Y), that pixel stays underneath
+ * the cursor while zooming.
+ *
+ * This is how professional image editors behave.
+ */
+
+function zoomAt(screenX, screenY, newScale) {
+
+    if (!state.loaded) {
+        return;
+    }
+
+    newScale = clamp(
+        newScale,
+        state.minScale,
+        state.maxScale
+    );
+
+    const oldScale = state.scale;
+
+    if (newScale === oldScale) {
+        return;
+    }
+
+    /*
+     * Convert screen coordinates into image coordinates.
+     */
+    const imageX =
+        (screenX - state.x) / oldScale;
+
+    const imageY =
+        (screenY - state.y) / oldScale;
+
+    state.scale = newScale;
+
+    /*
+     * Recalculate translation so the same image pixel stays
+     * under the cursor.
+     */
+    state.x =
+        screenX - imageX * newScale;
+
+    state.y =
+        screenY - imageY * newScale;
+
+    render();
+}
+
+
+function zoomBy(factor) {
+
+    if (!state.loaded) {
+        return;
+    }
+
+    const rect = viewer.getBoundingClientRect();
+
+    zoomAt(
+        rect.width / 2,
+        rect.height / 2,
+        state.scale * factor
+    );
+}
+
+
+/* ============================================================
+   Mouse wheel
+============================================================ */
+
+viewer.addEventListener(
+    "wheel",
+    event => {
+
+        if (!state.loaded) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const rect = viewer.getBoundingClientRect();
+
+        const mouseX =
+            event.clientX - rect.left;
+
+        const mouseY =
+            event.clientY - rect.top;
+
+        /*
+         * Exponential zoom gives smooth behavior.
+         */
+        const factor =
+            Math.exp(-event.deltaY * 0.0015);
+
+        zoomAt(
+            mouseX,
+            mouseY,
+            state.scale * factor
+        );
+    },
+    {
+        passive: false
+    }
+);
+
+
+/* ============================================================
+   Pan
+============================================================ */
+
+canvas.addEventListener(
+    "pointerdown",
+    event => {
+
+        if (!state.loaded) {
+            return;
+        }
+
+        /*
+         * Only left mouse button.
+         */
+        if (event.button !== 0) {
+            return;
+        }
+
+        state.dragging = true;
+
+        state.dragStartX = event.clientX;
+        state.dragStartY = event.clientY;
+
+        state.imageStartX = state.x;
+        state.imageStartY = state.y;
+
+        canvas.classList.add("dragging");
+
+        canvas.setPointerCapture(event.pointerId);
+    }
+);
+
+
+canvas.addEventListener(
+    "pointermove",
+    event => {
+
+        if (!state.dragging) {
+            return;
+        }
+
+        state.x =
+            state.imageStartX +
+            (event.clientX - state.dragStartX);
+
+        state.y =
+            state.imageStartY +
+            (event.clientY - state.dragStartY);
+
+        render();
+    }
+);
+
+
+function stopDragging(event) {
+
+    if (!state.dragging) {
+        return;
+    }
+
+    state.dragging = false;
+
+    canvas.classList.remove("dragging");
+
+    try {
+        canvas.releasePointerCapture(event.pointerId);
+    } catch {
+        /* Pointer may already have been released. */
+    }
+}
+
+
+canvas.addEventListener("pointerup", stopDragging);
+canvas.addEventListener("pointercancel", stopDragging);
+
+
+/* ============================================================
+   Double click
+============================================================ */
+
+canvas.addEventListener(
+    "dblclick",
+    () => {
+
+        if (!state.loaded) {
+            return;
+        }
+
+        /*
+         * Toggle between fit and true 1:1 pixel size.
+         */
+        if (Math.abs(state.scale - 1) < 0.001) {
+            fitToScreen();
+        } else {
+            actualSize();
+        }
+    }
+);
+
+
+/* ============================================================
+   Drag & drop
+============================================================ */
+
+[
+    "dragenter",
+    "dragover"
+].forEach(eventName => {
+
+    viewer.addEventListener(
+        eventName,
+        event => {
+
+            event.preventDefault();
+
+            viewer.classList.add("drop-active");
+        }
+    );
+});
+
+
+[
+    "dragleave",
+    "drop"
+].forEach(eventName => {
+
+    viewer.addEventListener(
+        eventName,
+        event => {
+
+            event.preventDefault();
+
+            viewer.classList.remove("drop-active");
+        }
+    );
+});
+
+
+viewer.addEventListener(
+    "drop",
+    event => {
+
+        const files =
+            Array.from(event.dataTransfer.files);
+
+        const imageFile =
+            files.find(file =>
+                file.type.startsWith("image/")
+            );
+
+        if (imageFile) {
+            loadImageFile(imageFile);
+        }
+    }
+);
+
+
+/* ============================================================
+   Clipboard paste
+============================================================ */
+
+document.addEventListener(
+    "paste",
+    event => {
+
+        const items =
+            Array.from(event.clipboardData?.items || []);
+
+        /*
+         * Find the first image in the clipboard.
+         */
+        const imageItem =
+            items.find(item =>
+                item.kind === "file" &&
+                item.type.startsWith("image/")
+            );
+
+        if (!imageItem) {
+            return;
+        }
+
+        const file = imageItem.getAsFile();
+
+        if (file) {
+            loadImageFile(file);
+        }
+    }
+);
+
+
+/* ============================================================
+   File picker
+============================================================ */
+
+openButton.addEventListener(
+    "click",
+    () => fileInput.click()
+);
+
+
+fileInput.addEventListener(
+    "change",
+    () => {
+
+        const file = fileInput.files[0];
+
+        if (file) {
+            loadImageFile(file);
+        }
+
+        /*
+         * Allows selecting the same file again later.
+         */
+        fileInput.value = "";
+    }
+);
+
+
+/* ============================================================
+   Buttons
+============================================================ */
+
+zoomInButton.addEventListener(
+    "click",
+    () => zoomBy(1.25)
+);
+
+
+zoomOutButton.addEventListener(
+    "click",
+    () => zoomBy(0.8)
+);
+
+
+fitButton.addEventListener(
+    "click",
+    fitToScreen
+);
+
+
+actualButton.addEventListener(
+    "click",
+    actualSize
+);
+
+
+resetButton.addEventListener(
+    "click",
+    resetView
+);
+
+
+/* ============================================================
+   Keyboard shortcuts
+============================================================ */
+
+document.addEventListener(
+    "keydown",
+    event => {
+
+        /*
+         * Do not hijack shortcuts while typing.
+         */
+        const tag =
+            document.activeElement?.tagName;
+
+        if (
+            tag === "INPUT" ||
+            tag === "TEXTAREA"
+        ) {
+            return;
+        }
+
+        if (event.key === "+" || event.key === "=") {
+
+            event.preventDefault();
+
+            zoomBy(1.25);
+
+            return;
+        }
+
+        if (event.key === "-" || event.key === "_") {
+
+            event.preventDefault();
+
+            zoomBy(0.8);
+
+            return;
+        }
+
+        if (event.key === "0") {
+
+            event.preventDefault();
+
+            fitToScreen();
+
+            return;
+        }
+
+        if (event.key === "1") {
+
+            event.preventDefault();
+
+            actualSize();
+
+            return;
+        }
+
+        if (event.key === "r") {
+
+            event.preventDefault();
+
+            resetView();
+
+            return;
+        }
+    }
+);
+
+
+/* ============================================================
+   Resize
+============================================================ */
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        if (!state.loaded) {
+            return;
+        }
+
+        /*
+         * Keep the current image position/zoom during resize.
+         */
+        render();
+    }
+);
+
+
+/* ============================================================
+   Prevent browser from opening dropped images
+============================================================ */
+
+window.addEventListener(
+    "dragover",
+    event => event.preventDefault()
+);
+
+
+window.addEventListener(
+    "drop",
+    event => event.preventDefault()
+);
+
+
+/* ============================================================
+   Initial UI
+============================================================ */
+
+render();
+
+</script>
+
+</body>
+</html>
