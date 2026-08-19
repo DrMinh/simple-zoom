@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PixelView — Image Viewer</title>
+
+<title>Zoom Tool</title>
 
 <style>
     :root {
@@ -11,11 +12,12 @@
         --panel: #191c23;
         --panel-2: #20242d;
         --border: #303641;
+
         --text: #f1f3f5;
         --muted: #9299a6;
+
         --accent: #5b9cff;
         --accent-hover: #78adff;
-        --danger: #ff6262;
     }
 
     * {
@@ -28,6 +30,7 @@
         height: 100%;
         margin: 0;
         overflow: hidden;
+
         font-family:
             Inter,
             ui-sans-serif,
@@ -36,6 +39,7 @@
             BlinkMacSystemFont,
             "Segoe UI",
             sans-serif;
+
         background: var(--bg);
         color: var(--text);
     }
@@ -45,130 +49,176 @@
         flex-direction: column;
     }
 
-    /* ---------------------------------------------------------
-       Header
-    --------------------------------------------------------- */
+
+    /* =========================================================
+       TOOLBAR
+    ========================================================= */
 
     .toolbar {
         height: 58px;
         min-height: 58px;
+
         display: flex;
         align-items: center;
+
         gap: 8px;
         padding: 0 14px;
+
         background: var(--panel);
         border-bottom: 1px solid var(--border);
+
         user-select: none;
         z-index: 10;
     }
 
+
     .brand {
         display: flex;
         align-items: center;
+
         gap: 9px;
         margin-right: 12px;
+
         font-size: 15px;
         font-weight: 700;
         letter-spacing: .2px;
     }
 
+
     .brand-mark {
         width: 25px;
         height: 25px;
+
         display: grid;
         place-items: center;
+
         border-radius: 7px;
+
         background: var(--accent);
         color: white;
+
         font-size: 13px;
         font-weight: 800;
     }
 
+
     .toolbar-group {
         display: flex;
         align-items: center;
+
         gap: 4px;
+
         padding-right: 8px;
         margin-right: 4px;
+
         border-right: 1px solid var(--border);
     }
 
+
     button {
         appearance: none;
+
         border: 1px solid transparent;
         background: transparent;
+
         color: var(--text);
+
         height: 34px;
         min-width: 34px;
+
         padding: 0 10px;
+
         border-radius: 7px;
+
         font: inherit;
         font-size: 13px;
+
         cursor: pointer;
+
         transition:
             background .12s ease,
             border-color .12s ease;
     }
+
 
     button:hover {
         background: var(--panel-2);
         border-color: var(--border);
     }
 
+
     button:active {
         transform: translateY(1px);
     }
+
 
     button.primary {
         background: var(--accent);
         color: white;
     }
 
+
     button.primary:hover {
         background: var(--accent-hover);
         border-color: transparent;
     }
 
+
     .zoom-label {
         min-width: 66px;
+
         text-align: center;
-        font-size: 13px;
+
         color: var(--muted);
+
+        font-size: 13px;
+
         font-variant-numeric: tabular-nums;
     }
+
 
     .spacer {
         flex: 1;
     }
 
+
     .file-info {
+        max-width: 330px;
+
         color: var(--muted);
+
         font-size: 12px;
+
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 330px;
     }
 
-    /* ---------------------------------------------------------
-       Viewer
-    --------------------------------------------------------- */
+
+    /* =========================================================
+       VIEWER
+    ========================================================= */
 
     .viewer {
         position: relative;
+
         flex: 1;
+
         overflow: hidden;
+
         background-color: #0d0f13;
 
         /*
-         * Subtle checkerboard indicating transparency.
+         * Transparency checkerboard.
          */
         background-image:
             linear-gradient(45deg, #15181d 25%, transparent 25%),
             linear-gradient(-45deg, #15181d 25%, transparent 25%),
             linear-gradient(45deg, transparent 75%, #15181d 75%),
             linear-gradient(-45deg, transparent 75%, #15181d 75%);
+
         background-size: 32px 32px;
+
         background-position:
             0 0,
             0 16px,
@@ -176,25 +226,34 @@
             -16px 0;
     }
 
+
     .canvas {
         position: absolute;
         inset: 0;
+
         overflow: hidden;
+
         cursor: grab;
     }
+
 
     .canvas.dragging {
         cursor: grabbing;
     }
 
+
     /*
-     * The image is positioned with transforms.
+     * IMPORTANT:
      *
-     * image-rendering:
-     *   pixelated = preserve hard pixel edges when enlarged.
+     * The image is hidden until an actual image successfully
+     * loads. This prevents Chrome's broken-image placeholder
+     * from appearing on the initial page.
      */
     #image {
+        display: none;
+
         position: absolute;
+
         left: 0;
         top: 0;
 
@@ -206,109 +265,243 @@
 
         transform-origin: 0 0;
 
+        /*
+         * Keep enlarged pixels sharp.
+         */
         image-rendering: pixelated;
         image-rendering: crisp-edges;
 
         pointer-events: none;
     }
 
-    /*
-     * Empty state
-     */
+
+    #image.loaded {
+        display: block;
+    }
+
+
+    /* =========================================================
+       EMPTY STATE
+    ========================================================= */
 
     .empty-state {
         position: absolute;
         inset: 0;
+
         display: grid;
         place-items: center;
+
         pointer-events: none;
     }
 
+
     .empty-card {
-        width: min(520px, calc(100vw - 40px));
-        padding: 42px 35px;
+        width: min(540px, calc(100vw - 40px));
+
+        padding: 44px 38px;
+
         text-align: center;
-        border: 1px dashed #454c59;
-        border-radius: 14px;
-        background: rgba(20, 23, 29, .82);
-        backdrop-filter: blur(8px);
+
+        border: 1px solid #303641;
+        border-radius: 16px;
+
+        background:
+            linear-gradient(
+                180deg,
+                rgba(32, 36, 45, .92),
+                rgba(22, 25, 31, .92)
+            );
+
+        box-shadow:
+            0 20px 60px rgba(0, 0, 0, .28),
+            inset 0 1px rgba(255, 255, 255, .025);
+
+        backdrop-filter: blur(10px);
     }
 
+
+    /*
+     * CSS-only image icon.
+     *
+     * This means the empty state does not depend on an image
+     * resource at all.
+     */
     .empty-icon {
-        width: 58px;
-        height: 58px;
-        margin: 0 auto 18px;
-        display: grid;
-        place-items: center;
-        border-radius: 14px;
-        background: var(--panel-2);
+        width: 68px;
+        height: 68px;
+
+        margin: 0 auto 20px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        position: relative;
+
+        border: 1px solid #3b4350;
+        border-radius: 15px;
+
+        background: #1a1e26;
+
         color: var(--accent);
-        font-size: 25px;
+
+        box-shadow:
+            inset 0 0 0 6px rgba(255,255,255,.015);
     }
+
+
+    .empty-icon::before {
+        content: "";
+
+        width: 31px;
+        height: 23px;
+
+        border: 2px solid currentColor;
+        border-radius: 4px;
+
+        position: absolute;
+    }
+
+
+    .empty-icon::after {
+        content: "";
+
+        width: 7px;
+        height: 7px;
+
+        border: 2px solid currentColor;
+        border-radius: 50%;
+
+        position: absolute;
+
+        top: 20px;
+        left: 22px;
+    }
+
 
     .empty-card h1 {
         margin: 0 0 9px;
-        font-size: 20px;
+
+        font-size: 21px;
+        font-weight: 700;
+
+        letter-spacing: -.2px;
     }
+
 
     .empty-card p {
         margin: 0;
+
         color: var(--muted);
-        line-height: 1.6;
+
+        line-height: 1.65;
+
         font-size: 13px;
     }
 
+
     .empty-card strong {
         color: var(--text);
+        font-weight: 600;
     }
+
+
+    .shortcuts {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+
+        gap: 7px;
+
+        margin-top: 22px;
+    }
+
+
+    .shortcut {
+        padding: 5px 9px;
+
+        border: 1px solid #343a45;
+        border-radius: 6px;
+
+        background: #1a1e25;
+
+        color: #aeb5c1;
+
+        font-size: 11px;
+    }
+
 
     .drop-active::after {
         content: "";
+
         position: absolute;
         inset: 14px;
+
         border: 2px dashed var(--accent);
+
         border-radius: 12px;
+
         pointer-events: none;
-        box-shadow: 0 0 40px rgba(91, 156, 255, .12);
+
+        box-shadow:
+            0 0 40px rgba(91, 156, 255, .12);
     }
 
-    /* ---------------------------------------------------------
-       Bottom status bar
-    --------------------------------------------------------- */
+
+    /* =========================================================
+       STATUS BAR
+    ========================================================= */
 
     .statusbar {
         height: 30px;
         min-height: 30px;
+
         display: flex;
         align-items: center;
+
         gap: 16px;
+
         padding: 0 13px;
+
         background: var(--panel);
+
         border-top: 1px solid var(--border);
+
         color: var(--muted);
+
         font-size: 11px;
+
         user-select: none;
     }
+
 
     .status-item {
         display: flex;
         gap: 5px;
     }
 
+
     .status-item strong {
         color: var(--text);
         font-weight: 500;
     }
 
-    /* ---------------------------------------------------------
-       File input
-    --------------------------------------------------------- */
+
+    /* =========================================================
+       FILE INPUT
+    ========================================================= */
 
     #fileInput {
         display: none;
     }
 
+
+    /* =========================================================
+       RESPONSIVE
+    ========================================================= */
+
     @media (max-width: 700px) {
+
         .brand {
             margin-right: 2px;
         }
@@ -330,119 +523,215 @@
         button {
             padding: 0 7px;
         }
+
+        .empty-card {
+            padding: 35px 24px;
+        }
+
+        .statusbar .status-item:nth-last-child(-n+3) {
+            display: none;
+        }
     }
 </style>
 </head>
 
+
 <body>
+
+
+<!-- =========================================================
+     TOOLBAR
+========================================================= -->
 
 <header class="toolbar">
 
     <div class="brand">
-        <div class="brand-mark">P</div>
-        PixelView
+
+        <div class="brand-mark">
+            S
+        </div>
+
+        Simple Zoom
+
     </div>
 
+
     <div class="toolbar-group">
+
         <button
             id="openButton"
             class="primary"
             title="Open image">
+
             Open
+
         </button>
+
 
         <input
             id="fileInput"
             type="file"
             accept="image/*">
+
     </div>
+
 
     <div class="toolbar-group">
 
         <button
             id="zoomOut"
-            title="Zoom out (-)">
+            title="Zoom out">
+
             −
+
         </button>
+
 
         <div
             id="zoomLabel"
             class="zoom-label">
+
             100%
+
         </div>
+
 
         <button
             id="zoomIn"
-            title="Zoom in (+)">
+            title="Zoom in">
+
             +
+
         </button>
 
     </div>
+
 
     <div class="toolbar-group">
 
         <button
             id="fitButton"
             title="Fit image to window">
+
             Fit
+
         </button>
+
 
         <button
             id="actualButton"
             title="Display at actual pixel size">
+
             100%
+
         </button>
+
 
         <button
             id="resetButton"
             title="Reset view">
+
             Reset
+
         </button>
 
     </div>
 
+
     <div class="spacer"></div>
+
 
     <div
         id="fileInfo"
         class="file-info">
+
         No image loaded
+
     </div>
 
 </header>
 
 
+<!-- =========================================================
+     VIEWER
+========================================================= -->
+
 <main
     id="viewer"
     class="viewer">
+
 
     <div
         id="canvas"
         class="canvas">
 
+
+        <!--
+            IMPORTANT:
+
+            No src attribute.
+
+            The image is display:none until image.onload
+            confirms that a real image was successfully loaded.
+        -->
+
         <img
             id="image"
-            alt="Image preview"
+            alt=""
+            aria-hidden="true"
             draggable="false">
 
     </div>
 
 
+    <!--
+        Professional initial state.
+        This is what the user sees before an image exists.
+    -->
+
     <div
         id="emptyState"
         class="empty-state">
 
+
         <div class="empty-card">
 
-            <div class="empty-icon">⌁</div>
 
-            <h1>Drop an image here</h1>
+            <div
+                class="empty-icon"
+                aria-hidden="true">
+            </div>
+
+
+            <h1>
+                Simple Zoom
+            </h1>
+
 
             <p>
-                Drag & drop an image, click <strong>Open</strong>,
-                or simply paste an image from your clipboard with
-                <strong>Ctrl + V</strong>.
+
+                Drop an image here, open one from your computer,
+                or paste an image directly from your clipboard.
+
             </p>
+
+
+            <div class="shortcuts">
+
+                <span class="shortcut">
+                    Drag & Drop
+                </span>
+
+                <span class="shortcut">
+                    Ctrl + V
+                </span>
+
+                <span class="shortcut">
+                    Mouse Wheel
+                </span>
+
+            </div>
+
 
         </div>
 
@@ -451,32 +740,58 @@
 </main>
 
 
+<!-- =========================================================
+     STATUS BAR
+========================================================= -->
+
 <footer class="statusbar">
 
+
     <div class="status-item">
+
         Zoom:
-        <strong id="statusZoom">—</strong>
+
+        <strong id="statusZoom">
+            —
+        </strong>
+
     </div>
 
+
     <div class="status-item">
+
         Image:
-        <strong id="statusDimensions">—</strong>
+
+        <strong id="statusDimensions">
+            —
+        </strong>
+
     </div>
 
+
     <div class="status-item">
+
         Position:
-        <strong id="statusPosition">—</strong>
+
+        <strong id="statusPosition">
+            —
+        </strong>
+
     </div>
+
 
     <div class="spacer"></div>
+
 
     <div class="status-item">
         Wheel: Zoom
     </div>
 
+
     <div class="status-item">
         Drag: Pan
     </div>
+
 
     <div class="status-item">
         Double-click: Fit / 100%
@@ -488,53 +803,73 @@
 <script>
 "use strict";
 
-/*
- * PixelView
- * ----------
- * Standalone image viewer.
- * No external dependencies.
- */
-
 
 /* ============================================================
    DOM
 ============================================================ */
 
-const viewer = document.getElementById("viewer");
-const canvas = document.getElementById("canvas");
-const image = document.getElementById("image");
-const emptyState = document.getElementById("emptyState");
+const viewer =
+    document.getElementById("viewer");
 
-const fileInput = document.getElementById("fileInput");
-const openButton = document.getElementById("openButton");
+const canvas =
+    document.getElementById("canvas");
 
-const zoomInButton = document.getElementById("zoomIn");
-const zoomOutButton = document.getElementById("zoomOut");
+const image =
+    document.getElementById("image");
 
-const fitButton = document.getElementById("fitButton");
-const actualButton = document.getElementById("actualButton");
-const resetButton = document.getElementById("resetButton");
+const emptyState =
+    document.getElementById("emptyState");
 
-const zoomLabel = document.getElementById("zoomLabel");
-const fileInfo = document.getElementById("fileInfo");
+const fileInput =
+    document.getElementById("fileInput");
 
-const statusZoom = document.getElementById("statusZoom");
-const statusDimensions = document.getElementById("statusDimensions");
-const statusPosition = document.getElementById("statusPosition");
+const openButton =
+    document.getElementById("openButton");
+
+const zoomInButton =
+    document.getElementById("zoomIn");
+
+const zoomOutButton =
+    document.getElementById("zoomOut");
+
+const fitButton =
+    document.getElementById("fitButton");
+
+const actualButton =
+    document.getElementById("actualButton");
+
+const resetButton =
+    document.getElementById("resetButton");
+
+const zoomLabel =
+    document.getElementById("zoomLabel");
+
+const fileInfo =
+    document.getElementById("fileInfo");
+
+const statusZoom =
+    document.getElementById("statusZoom");
+
+const statusDimensions =
+    document.getElementById("statusDimensions");
+
+const statusPosition =
+    document.getElementById("statusPosition");
 
 
 /* ============================================================
-   Viewer state
+   STATE
 ============================================================ */
 
-let state = {
+const state = {
+
     loaded: false,
 
     width: 0,
     height: 0,
 
     /*
-     * Scale 1 = exactly one source image pixel per screen pixel.
+     * 1 = actual pixel size.
      */
     scale: 1,
 
@@ -560,15 +895,20 @@ let state = {
 
 
 /* ============================================================
-   Utility
+   UTILITY
 ============================================================ */
 
 function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
+
+    return Math.min(
+        Math.max(value, min),
+        max
+    );
 }
 
 
 function formatBytes(bytes) {
+
     if (!Number.isFinite(bytes)) {
         return "—";
     }
@@ -590,6 +930,7 @@ function formatBytes(bytes) {
 
 
 function formatZoom(scale) {
+
     const percent = scale * 100;
 
     if (percent >= 1000) {
@@ -609,7 +950,7 @@ function formatZoom(scale) {
 
 
 /* ============================================================
-   Rendering
+   RENDER
 ============================================================ */
 
 function render() {
@@ -618,33 +959,50 @@ function render() {
         return;
     }
 
+
     /*
-     * We deliberately use the image's native pixel dimensions.
+     * Keep the image at its native dimensions.
      *
-     * At scale = 1:
+     * Scale is applied using transform.
      *
-     *     source pixel = screen pixel
+     * At 100%:
      *
-     * At scale = 4:
+     *   1 image pixel = 1 screen pixel
      *
-     *     source pixel = 4 × 4 screen pixels
+     * At 500%:
      *
-     * image-rendering: pixelated keeps enlarged pixels sharp.
+     *   1 image pixel = 5 × 5 screen pixels
      */
 
-    image.style.width = `${state.width}px`;
-    image.style.height = `${state.height}px`;
+    image.style.width =
+        `${state.width}px`;
+
+    image.style.height =
+        `${state.height}px`;
+
 
     image.style.transform =
-        `translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`;
+        `translate3d(
+            ${state.x}px,
+            ${state.y}px,
+            0
+        ) scale(${state.scale})`;
 
-    const zoom = formatZoom(state.scale);
 
-    zoomLabel.textContent = zoom;
-    statusZoom.textContent = zoom;
+    const zoom =
+        formatZoom(state.scale);
+
+
+    zoomLabel.textContent =
+        zoom;
+
+    statusZoom.textContent =
+        zoom;
+
 
     statusDimensions.textContent =
         `${state.width} × ${state.height}`;
+
 
     statusPosition.textContent =
         `${Math.round(state.x)}, ${Math.round(state.y)}`;
@@ -652,7 +1010,7 @@ function render() {
 
 
 /* ============================================================
-   Image loading
+   LOAD IMAGE
 ============================================================ */
 
 function loadImageFile(file) {
@@ -661,70 +1019,188 @@ function loadImageFile(file) {
         return;
     }
 
+
     /*
-     * Only accept files the browser identifies as images.
+     * Only accept images.
      *
-     * SVG is also accepted by browsers through image/*.
+     * Browser-supported formats include common formats such as:
+     *
+     * PNG
+     * JPEG
+     * GIF
+     * WebP
+     * AVIF
+     * BMP
+     * SVG
+     *
+     * The actual supported formats depend on the browser.
      */
+
     if (!file.type.startsWith("image/")) {
-        alert("Please select a valid image file.");
+
+        alert(
+            "Please select a valid image file."
+        );
+
         return;
     }
 
+
+    /*
+     * Hide the previous image immediately.
+     *
+     * This also prevents a previous image from remaining visible
+     * while the new image is loading.
+     */
+
+    image.classList.remove("loaded");
+
+
+    /*
+     * Revoke previous object URL.
+     */
+
     if (state.objectUrl) {
-        URL.revokeObjectURL(state.objectUrl);
+
+        URL.revokeObjectURL(
+            state.objectUrl
+        );
+
         state.objectUrl = null;
     }
 
-    const objectUrl = URL.createObjectURL(file);
 
-    state.objectUrl = objectUrl;
-    state.fileName = file.name || "Clipboard image";
-    state.fileType = file.type || "Unknown";
+    const objectUrl =
+        URL.createObjectURL(file);
+
+
+    state.objectUrl =
+        objectUrl;
+
+    state.fileName =
+        file.name || "Clipboard image";
+
+    state.fileType =
+        file.type || "Unknown";
+
+
+    /*
+     * Wait for the browser to successfully decode the image.
+     */
 
     image.onload = () => {
 
-        state.width = image.naturalWidth;
-        state.height = image.naturalHeight;
+        state.width =
+            image.naturalWidth;
 
-        if (!state.width || !state.height) {
-            alert("The browser could not determine the image dimensions.");
+        state.height =
+            image.naturalHeight;
+
+
+        if (
+            !state.width ||
+            !state.height
+        ) {
+
+            image.classList.remove(
+                "loaded"
+            );
+
+            state.loaded = false;
+
+            emptyState.style.display =
+                "grid";
+
             return;
         }
 
+
         state.loaded = true;
 
-        emptyState.style.display = "none";
-
-        fileInfo.textContent =
-            `${state.fileName} · ${state.fileType} · ${formatBytes(file.size)}`;
 
         /*
-         * Start with a fit-to-screen view.
+         * IMPORTANT:
+         *
+         * Only now do we reveal the image.
+         *
+         * Therefore the browser can never show its broken-image
+         * placeholder during the initial page state.
          */
+
+        image.classList.add(
+            "loaded"
+        );
+
+
+        emptyState.style.display =
+            "none";
+
+
+        fileInfo.textContent =
+            `${state.fileName} · ` +
+            `${state.fileType} · ` +
+            `${formatBytes(file.size)}`;
+
+
+        /*
+         * Start with the image fitted to the viewer.
+         */
+
         fitToScreen();
 
         render();
     };
 
+
+    /*
+     * If decoding fails, keep the image hidden and restore
+     * the professional empty state.
+     */
+
     image.onerror = () => {
 
-        URL.revokeObjectURL(objectUrl);
+        image.classList.remove(
+            "loaded"
+        );
 
-        state.objectUrl = null;
         state.loaded = false;
+
+
+        emptyState.style.display =
+            "grid";
+
+
+        URL.revokeObjectURL(
+            objectUrl
+        );
+
+
+        if (
+            state.objectUrl === objectUrl
+        ) {
+
+            state.objectUrl = null;
+        }
+
 
         alert(
             "This browser cannot decode this image format."
         );
     };
 
-    image.src = objectUrl;
+
+    /*
+     * Assign the object URL only after handlers have been
+     * installed.
+     */
+
+    image.src =
+        objectUrl;
 }
 
 
 /* ============================================================
-   Fit
+   FIT
 ============================================================ */
 
 function calculateFitScale() {
@@ -733,16 +1209,40 @@ function calculateFitScale() {
         return 1;
     }
 
-    const rect = viewer.getBoundingClientRect();
 
-    const availableWidth = Math.max(1, rect.width - 40);
-    const availableHeight = Math.max(1, rect.height - 40);
+    const rect =
+        viewer.getBoundingClientRect();
 
-    const scaleX = availableWidth / state.width;
-    const scaleY = availableHeight / state.height;
+
+    const availableWidth =
+        Math.max(
+            1,
+            rect.width - 40
+        );
+
+
+    const availableHeight =
+        Math.max(
+            1,
+            rect.height - 40
+        );
+
+
+    const scaleX =
+        availableWidth /
+        state.width;
+
+
+    const scaleY =
+        availableHeight /
+        state.height;
+
 
     return clamp(
-        Math.min(scaleX, scaleY),
+        Math.min(
+            scaleX,
+            scaleY
+        ),
         state.minScale,
         state.maxScale
     );
@@ -755,15 +1255,34 @@ function fitToScreen() {
         return;
     }
 
-    state.scale = calculateFitScale();
 
-    const rect = viewer.getBoundingClientRect();
+    state.scale =
+        calculateFitScale();
 
-    const displayedWidth = state.width * state.scale;
-    const displayedHeight = state.height * state.scale;
 
-    state.x = (rect.width - displayedWidth) / 2;
-    state.y = (rect.height - displayedHeight) / 2;
+    const rect =
+        viewer.getBoundingClientRect();
+
+
+    const displayedWidth =
+        state.width *
+        state.scale;
+
+
+    const displayedHeight =
+        state.height *
+        state.scale;
+
+
+    state.x =
+        (rect.width -
+            displayedWidth) / 2;
+
+
+    state.y =
+        (rect.height -
+            displayedHeight) / 2;
+
 
     render();
 }
@@ -775,78 +1294,105 @@ function actualSize() {
         return;
     }
 
+
     state.scale = 1;
 
-    const rect = viewer.getBoundingClientRect();
+
+    const rect =
+        viewer.getBoundingClientRect();
+
 
     state.x =
-        (rect.width - state.width) / 2;
+        (rect.width -
+            state.width) / 2;
+
 
     state.y =
-        (rect.height - state.height) / 2;
+        (rect.height -
+            state.height) / 2;
+
 
     render();
 }
 
 
 function resetView() {
+
     fitToScreen();
 }
 
 
 /* ============================================================
-   Zoom
+   ZOOM
 ============================================================ */
 
 /*
- * Zoom around a screen point.
+ * Zoom around a screen coordinate.
  *
- * This is important:
- *
- * If the cursor is over pixel (X,Y), that pixel stays underneath
- * the cursor while zooming.
- *
- * This is how professional image editors behave.
+ * The image pixel under the cursor remains under the cursor.
  */
 
-function zoomAt(screenX, screenY, newScale) {
+function zoomAt(
+    screenX,
+    screenY,
+    newScale
+) {
 
     if (!state.loaded) {
         return;
     }
 
-    newScale = clamp(
-        newScale,
-        state.minScale,
-        state.maxScale
-    );
 
-    const oldScale = state.scale;
+    newScale =
+        clamp(
+            newScale,
+            state.minScale,
+            state.maxScale
+        );
 
-    if (newScale === oldScale) {
+
+    const oldScale =
+        state.scale;
+
+
+    if (
+        newScale === oldScale
+    ) {
         return;
     }
 
+
     /*
-     * Convert screen coordinates into image coordinates.
+     * Convert screen coordinate to image coordinate.
      */
+
     const imageX =
-        (screenX - state.x) / oldScale;
+        (screenX - state.x) /
+        oldScale;
+
 
     const imageY =
-        (screenY - state.y) / oldScale;
+        (screenY - state.y) /
+        oldScale;
 
-    state.scale = newScale;
+
+    state.scale =
+        newScale;
+
 
     /*
-     * Recalculate translation so the same image pixel stays
-     * under the cursor.
+     * Keep that same image point under the cursor.
      */
+
     state.x =
-        screenX - imageX * newScale;
+        screenX -
+        imageX * newScale;
+
 
     state.y =
-        screenY - imageY * newScale;
+        screenY -
+        imageY * newScale;
+
 
     render();
 }
@@ -858,7 +1404,10 @@ function zoomBy(factor) {
         return;
     }
 
-    const rect = viewer.getBoundingClientRect();
+
+    const rect =
+        viewer.getBoundingClientRect();
+
 
     zoomAt(
         rect.width / 2,
@@ -869,7 +1418,7 @@ function zoomBy(factor) {
 
 
 /* ============================================================
-   Mouse wheel
+   MOUSE WHEEL ZOOM
 ============================================================ */
 
 viewer.addEventListener(
@@ -880,21 +1429,33 @@ viewer.addEventListener(
             return;
         }
 
+
         event.preventDefault();
 
-        const rect = viewer.getBoundingClientRect();
+
+        const rect =
+            viewer.getBoundingClientRect();
+
 
         const mouseX =
-            event.clientX - rect.left;
+            event.clientX -
+            rect.left;
+
 
         const mouseY =
-            event.clientY - rect.top;
+            event.clientY -
+            rect.top;
+
 
         /*
-         * Exponential zoom gives smooth behavior.
+         * Smooth exponential zoom.
          */
+
         const factor =
-            Math.exp(-event.deltaY * 0.0015);
+            Math.exp(
+                -event.deltaY * 0.0015
+            );
+
 
         zoomAt(
             mouseX,
@@ -909,7 +1470,7 @@ viewer.addEventListener(
 
 
 /* ============================================================
-   Pan
+   PAN
 ============================================================ */
 
 canvas.addEventListener(
@@ -920,24 +1481,40 @@ canvas.addEventListener(
             return;
         }
 
-        /*
-         * Only left mouse button.
-         */
+
         if (event.button !== 0) {
             return;
         }
 
-        state.dragging = true;
 
-        state.dragStartX = event.clientX;
-        state.dragStartY = event.clientY;
+        state.dragging =
+            true;
 
-        state.imageStartX = state.x;
-        state.imageStartY = state.y;
 
-        canvas.classList.add("dragging");
+        state.dragStartX =
+            event.clientX;
 
-        canvas.setPointerCapture(event.pointerId);
+
+        state.dragStartY =
+            event.clientY;
+
+
+        state.imageStartX =
+            state.x;
+
+
+        state.imageStartY =
+            state.y;
+
+
+        canvas.classList.add(
+            "dragging"
+        );
+
+
+        canvas.setPointerCapture(
+            event.pointerId
+        );
     }
 );
 
@@ -950,13 +1527,22 @@ canvas.addEventListener(
             return;
         }
 
+
         state.x =
             state.imageStartX +
-            (event.clientX - state.dragStartX);
+            (
+                event.clientX -
+                state.dragStartX
+            );
+
 
         state.y =
             state.imageStartY +
-            (event.clientY - state.dragStartY);
+            (
+                event.clientY -
+                state.dragStartY
+            );
+
 
         render();
     }
@@ -969,24 +1555,43 @@ function stopDragging(event) {
         return;
     }
 
+
     state.dragging = false;
 
-    canvas.classList.remove("dragging");
+
+    canvas.classList.remove(
+        "dragging"
+    );
+
 
     try {
-        canvas.releasePointerCapture(event.pointerId);
+
+        canvas.releasePointerCapture(
+            event.pointerId
+        );
+
     } catch {
-        /* Pointer may already have been released. */
+        /*
+         * Pointer may already have been released.
+         */
     }
 }
 
 
-canvas.addEventListener("pointerup", stopDragging);
-canvas.addEventListener("pointercancel", stopDragging);
+canvas.addEventListener(
+    "pointerup",
+    stopDragging
+);
+
+
+canvas.addEventListener(
+    "pointercancel",
+    stopDragging
+);
 
 
 /* ============================================================
-   Double click
+   DOUBLE CLICK
 ============================================================ */
 
 canvas.addEventListener(
@@ -997,12 +1602,17 @@ canvas.addEventListener(
             return;
         }
 
-        /*
-         * Toggle between fit and true 1:1 pixel size.
-         */
-        if (Math.abs(state.scale - 1) < 0.001) {
+
+        if (
+            Math.abs(
+                state.scale - 1
+            ) < 0.001
+        ) {
+
             fitToScreen();
+
         } else {
+
             actualSize();
         }
     }
@@ -1010,41 +1620,49 @@ canvas.addEventListener(
 
 
 /* ============================================================
-   Drag & drop
+   DRAG & DROP
 ============================================================ */
 
 [
     "dragenter",
     "dragover"
-].forEach(eventName => {
+].forEach(
+    eventName => {
 
-    viewer.addEventListener(
-        eventName,
-        event => {
+        viewer.addEventListener(
+            eventName,
+            event => {
 
-            event.preventDefault();
+                event.preventDefault();
 
-            viewer.classList.add("drop-active");
-        }
-    );
-});
+                viewer.classList.add(
+                    "drop-active"
+                );
+            }
+        );
+    }
+);
 
 
 [
     "dragleave",
     "drop"
-].forEach(eventName => {
+].forEach(
+    eventName => {
 
-    viewer.addEventListener(
-        eventName,
-        event => {
+        viewer.addEventListener(
+            eventName,
+            event => {
 
-            event.preventDefault();
+                event.preventDefault();
 
-            viewer.classList.remove("drop-active");
-        }
-    );
-});
+                viewer.classList.remove(
+                    "drop-active"
+                );
+            }
+        );
+    }
+);
 
 
 viewer.addEventListener(
@@ -1052,22 +1670,31 @@ viewer.addEventListener(
     event => {
 
         const files =
-            Array.from(event.dataTransfer.files);
-
-        const imageFile =
-            files.find(file =>
-                file.type.startsWith("image/")
+            Array.from(
+                event.dataTransfer.files
             );
 
+
+        const imageFile =
+            files.find(
+                file =>
+                    file.type.startsWith(
+                        "image/"
+                    )
+            );
+
+
         if (imageFile) {
-            loadImageFile(imageFile);
+            loadImageFile(
+                imageFile
+            );
         }
     }
 );
 
 
 /* ============================================================
-   Clipboard paste
+   CLIPBOARD PASTE
 ============================================================ */
 
 document.addEventListener(
@@ -1075,37 +1702,50 @@ document.addEventListener(
     event => {
 
         const items =
-            Array.from(event.clipboardData?.items || []);
-
-        /*
-         * Find the first image in the clipboard.
-         */
-        const imageItem =
-            items.find(item =>
-                item.kind === "file" &&
-                item.type.startsWith("image/")
+            Array.from(
+                event.clipboardData?.items || []
             );
+
+
+        const imageItem =
+            items.find(
+                item =>
+                    item.kind === "file" &&
+                    item.type.startsWith(
+                        "image/"
+                    )
+            );
+
 
         if (!imageItem) {
             return;
         }
 
-        const file = imageItem.getAsFile();
+
+        const file =
+            imageItem.getAsFile();
+
 
         if (file) {
-            loadImageFile(file);
+
+            loadImageFile(
+                file
+            );
         }
     }
 );
 
 
 /* ============================================================
-   File picker
+   FILE PICKER
 ============================================================ */
 
 openButton.addEventListener(
     "click",
-    () => fileInput.click()
+    () => {
+
+        fileInput.click();
+    }
 );
 
 
@@ -1113,33 +1753,46 @@ fileInput.addEventListener(
     "change",
     () => {
 
-        const file = fileInput.files[0];
+        const file =
+            fileInput.files[0];
+
 
         if (file) {
-            loadImageFile(file);
+
+            loadImageFile(
+                file
+            );
         }
 
+
         /*
-         * Allows selecting the same file again later.
+         * Allow selecting the same file again.
          */
+
         fileInput.value = "";
     }
 );
 
 
 /* ============================================================
-   Buttons
+   BUTTONS
 ============================================================ */
 
 zoomInButton.addEventListener(
     "click",
-    () => zoomBy(1.25)
+    () => {
+
+        zoomBy(1.25);
+    }
 );
 
 
 zoomOutButton.addEventListener(
     "click",
-    () => zoomBy(0.8)
+    () => {
+
+        zoomBy(0.8);
+    }
 );
 
 
@@ -1162,18 +1815,20 @@ resetButton.addEventListener(
 
 
 /* ============================================================
-   Keyboard shortcuts
+   KEYBOARD SHORTCUTS
 ============================================================ */
 
 document.addEventListener(
     "keydown",
     event => {
 
-        /*
-         * Do not hijack shortcuts while typing.
-         */
         const tag =
             document.activeElement?.tagName;
+
+
+        /*
+         * Don't interfere with text inputs.
+         */
 
         if (
             tag === "INPUT" ||
@@ -1182,7 +1837,15 @@ document.addEventListener(
             return;
         }
 
-        if (event.key === "+" || event.key === "=") {
+
+        /*
+         * Zoom in.
+         */
+
+        if (
+            event.key === "+" ||
+            event.key === "="
+        ) {
 
             event.preventDefault();
 
@@ -1191,7 +1854,15 @@ document.addEventListener(
             return;
         }
 
-        if (event.key === "-" || event.key === "_") {
+
+        /*
+         * Zoom out.
+         */
+
+        if (
+            event.key === "-" ||
+            event.key === "_"
+        ) {
 
             event.preventDefault();
 
@@ -1199,6 +1870,11 @@ document.addEventListener(
 
             return;
         }
+
+
+        /*
+         * Fit.
+         */
 
         if (event.key === "0") {
 
@@ -1209,6 +1885,11 @@ document.addEventListener(
             return;
         }
 
+
+        /*
+         * Actual pixel size.
+         */
+
         if (event.key === "1") {
 
             event.preventDefault();
@@ -1218,7 +1899,14 @@ document.addEventListener(
             return;
         }
 
-        if (event.key === "r") {
+
+        /*
+         * Reset.
+         */
+
+        if (
+            event.key.toLowerCase() === "r"
+        ) {
 
             event.preventDefault();
 
@@ -1231,7 +1919,7 @@ document.addEventListener(
 
 
 /* ============================================================
-   Resize
+   RESIZE
 ============================================================ */
 
 window.addEventListener(
@@ -1242,33 +1930,46 @@ window.addEventListener(
             return;
         }
 
-        /*
-         * Keep the current image position/zoom during resize.
-         */
+
         render();
     }
 );
 
 
 /* ============================================================
-   Prevent browser from opening dropped images
+   PREVENT BROWSER DEFAULT DROP BEHAVIOR
 ============================================================ */
 
 window.addEventListener(
     "dragover",
-    event => event.preventDefault()
+    event => {
+
+        event.preventDefault();
+    }
 );
 
 
 window.addEventListener(
     "drop",
-    event => event.preventDefault()
+    event => {
+
+        event.preventDefault();
+    }
 );
 
 
 /* ============================================================
-   Initial UI
+   INITIAL STATE
 ============================================================ */
+
+/*
+ * Nothing is loaded here.
+ *
+ * The <img> has no src and is display:none.
+ *
+ * Therefore the first page load shows only the professional
+ * Simple Zoom empty state — never Chrome's broken-image icon.
+ */
 
 render();
 
